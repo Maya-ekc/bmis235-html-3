@@ -37,7 +37,442 @@
      This box is empty on purpose. In Part 7 you paste an interactive
      graphic BETWEEN the opening <div> and the closing </div> below.
      ===================================================================== -->
-<div class="showcase"><</div>
+<div class="showcase"><!-- CSS: Scopes all styling strictly inside .showcase, sets Garamond font, #502636 brand theme, and responsive sizing under 500px -->
+<style>
+  .showcase {
+    position: relative;
+    width: 100%;
+    height: 440px;
+    max-height: 490px;
+    background: linear-gradient(160deg, #fcf9f7 0%, #f3eae6 100%);
+    border: 2px solid #502636;
+    border-radius: 14px;
+    overflow: hidden;
+    font-family: "Garamond", "EB Garamond", "Baskerville", "Times New Roman", serif;
+    color: #502636;
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+
+  .showcase *,
+  .showcase *::before,
+  .showcase *::after {
+    box-sizing: border-box;
+  }
+
+  .showcase-header {
+    position: absolute;
+    top: 16px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    pointer-events: none;
+    z-index: 2;
+    padding: 0 14px;
+  }
+
+  .showcase-title {
+    font-size: clamp(1.45rem, 4.5vw, 2.1rem);
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: #502636;
+    margin: 0;
+    line-height: 1.15;
+  }
+
+  .showcase-subtitle {
+    font-size: clamp(0.88rem, 2.8vw, 1.05rem);
+    font-style: italic;
+    color: #7a4659;
+    margin-top: 4px;
+  }
+
+  .showcase-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+
+  .showcase-badge {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(80, 38, 54, 0.92);
+    color: #fcf9f7;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 2;
+    transition: opacity 0.25s ease;
+  }
+
+  @media (max-width: 480px) {
+    .showcase {
+      height: 360px;
+      border-radius: 10px;
+    }
+    .showcase-badge {
+      font-size: 0.78rem;
+      padding: 5px 12px;
+    }
+  }
+</style>
+
+<!-- HTML: Interactive canvas container and brand overlay inside your existing .showcase div -->
+<div class="showcase-header">
+  <div class="showcase-title">3 Coffee Shops</div>
+  <div class="showcase-subtitle">Tap or click a cup to give it a bounce!</div>
+</div>
+<canvas class="showcase-canvas" aria-label="Interactive bouncing cute coffee cups"></canvas>
+<div class="showcase-badge">3 Local Favorites &bull; Tap to Cheer</div>
+
+<!-- JavaScript: Animates 3 cute bouncing coffee cups with physics, steam wisps, and click/tap interaction -->
+<script>
+  (function () {
+    const container = document.currentScript.parentElement;
+    if (!container || !container.classList.contains("showcase")) return;
+
+    const canvas = container.querySelector(".showcase-canvas");
+    const badge = container.querySelector(".showcase-badge");
+    const ctx = canvas.getContext("2d");
+
+    const BRAND = "#502636";
+    const CUP_CONFIGS = [
+      { label: "Shop #1", sleeve: "#502636", lid: "#3a1926", blush: "#e88d9c" },
+      { label: "Shop #2", sleeve: "#7b4358", lid: "#502636", blush: "#f09aa8" },
+      { label: "Shop #3", sleeve: "#9c6277", lid: "#502636", blush: "#e88d9c" }
+    ];
+
+    let width = 0;
+    let height = 0;
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let cups = [];
+    let steams = [];
+    let lastTime = 0;
+
+    function resize() {
+      const rect = container.getBoundingClientRect();
+      width = rect.width;
+      height = rect.height;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const scale = width < 480 ? 0.76 : 0.95;
+      cups.forEach((cup) => {
+        cup.radius = 34 * scale;
+        cup.scale = scale;
+        cup.x = Math.max(cup.radius + 10, Math.min(width - cup.radius - 10, cup.x));
+        cup.y = Math.max(cup.radius + 70, Math.min(height - cup.radius - 42, cup.y));
+      });
+    }
+
+    function initCups() {
+      const rect = container.getBoundingClientRect();
+      width = rect.width || 320;
+      height = rect.height || 400;
+      const scale = width < 480 ? 0.76 : 0.95;
+
+      cups = CUP_CONFIGS.map((cfg, i) => {
+        const spacing = width / 4;
+        return {
+          ...cfg,
+          x: spacing * (i + 1),
+          y: height * 0.55 - i * 18,
+          vx: (i % 2 === 0 ? 1 : -1) * (65 + i * 18),
+          vy: -120 - i * 35,
+          radius: 34 * scale,
+          scale: scale,
+          squashX: 1,
+          squashY: 1,
+          tilt: 0,
+          blinkTimer: 1.5 + i * 1.1,
+          isBlinking: false,
+          happyTimer: 0
+        };
+      });
+    }
+
+    function spawnSteam(x, y) {
+      steams.push({
+        x: x + (Math.random() - 0.5) * 14,
+        y: y,
+        vy: -28 - Math.random() * 16,
+        alpha: 0.75,
+        phase: Math.random() * Math.PI * 2,
+        size: 3 + Math.random() * 2.5
+      });
+    }
+
+    function drawCup(cup) {
+      ctx.save();
+      ctx.translate(cup.x, cup.y);
+      ctx.rotate(cup.tilt);
+      ctx.scale(cup.scale * cup.squashX, cup.scale * cup.squashY);
+
+      // Soft ground shadow
+      ctx.fillStyle = "rgba(80, 38, 54, 0.12)";
+      ctx.beginPath();
+      ctx.ellipse(0, 44, 28, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cup body (tapered trapezoid)
+      ctx.fillStyle = "#fffdfb";
+      ctx.strokeStyle = BRAND;
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.moveTo(-24, -22);
+      ctx.lineTo(24, -22);
+      ctx.lineTo(18, 36);
+      ctx.quadraticCurveTo(17, 40, 12, 40);
+      ctx.lineTo(-12, 40);
+      ctx.quadraticCurveTo(-17, 40, -18, 36);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Brand sleeve
+      ctx.fillStyle = cup.sleeve;
+      ctx.beginPath();
+      ctx.moveTo(-22.2, -5);
+      ctx.lineTo(22.2, -5);
+      ctx.lineTo(20, 18);
+      ctx.lineTo(-20, 18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Cup lid
+      ctx.fillStyle = cup.lid;
+      ctx.beginPath();
+      ctx.roundRect(-27, -30, 54, 8, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.roundRect(-22, -36, 44, 6, 3);
+      ctx.fill();
+      ctx.stroke();
+
+      // Cute face on the sleeve
+      ctx.fillStyle = "#fffdfb";
+      ctx.strokeStyle = "#fffdfb";
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = "round";
+
+      // Eyes
+      if (cup.isBlinking || cup.happyTimer > 0) {
+        // Happy curved eyes
+        ctx.beginPath();
+        ctx.arc(-8, 4, 3.2, Math.PI, 0);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(8, 4, 3.2, Math.PI, 0);
+        ctx.stroke();
+      } else {
+        // Open eyes with tiny sparkle
+        ctx.beginPath();
+        ctx.arc(-8, 4, 2.8, 0, Math.PI * 2);
+        ctx.arc(8, 4, 2.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Rosy cheeks
+      ctx.fillStyle = cup.blush;
+      ctx.beginPath();
+      ctx.ellipse(-13, 8, 3.5, 2, 0, 0, Math.PI * 2);
+      ctx.ellipse(13, 8, 3.5, 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Smile
+      ctx.strokeStyle = "#fffdfb";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 7, 4, 0.15 * Math.PI, 0.85 * Math.PI);
+      ctx.stroke();
+
+      // Shop tag underneath
+      ctx.fillStyle = BRAND;
+      ctx.font = 'bold 12px "Garamond", "Times New Roman", serif';
+      ctx.textAlign = "center";
+      ctx.fillText(cup.label, 0, 56);
+
+      ctx.restore();
+    }
+
+    function update(dt) {
+      const gravity = 460;
+      const topBound = 78;
+      const bottomBound = height - 48;
+
+      cups.forEach((cup) => {
+        cup.vy += gravity * dt;
+        cup.x += cup.vx * dt;
+        cup.y += cup.vy * dt;
+
+        // Horizontal wall bounce
+        if (cup.x - cup.radius < 12) {
+          cup.x = 12 + cup.radius;
+          cup.vx = Math.abs(cup.vx);
+          cup.squashX = 0.85;
+          cup.squashY = 1.15;
+        } else if (cup.x + cup.radius > width - 12) {
+          cup.x = width - 12 - cup.radius;
+          cup.vx = -Math.abs(cup.vx);
+          cup.squashX = 0.85;
+          cup.squashY = 1.15;
+        }
+
+        // Top bounce
+        if (cup.y - cup.radius < topBound) {
+          cup.y = topBound + cup.radius;
+          cup.vy = Math.abs(cup.vy) * 0.85;
+        }
+
+        // Floor bounce with playful hop energy
+        if (cup.y + cup.radius > bottomBound) {
+          cup.y = bottomBound - cup.radius;
+          cup.vy = -(250 + Math.random() * 85);
+          cup.squashX = 1.22;
+          cup.squashY = 0.8;
+          spawnSteam(cup.x, cup.y - cup.radius - 6);
+        }
+
+        // Recover squash & stretch smoothly
+        cup.squashX += (1 - cup.squashX) * Math.min(1, dt * 12);
+        cup.squashY += (1 - cup.squashY) * Math.min(1, dt * 12);
+        cup.tilt = (cup.vx / 260) * 0.22;
+
+        // Blink & happy expression timers
+        cup.blinkTimer -= dt;
+        if (cup.blinkTimer <= 0) {
+          cup.isBlinking = !cup.isBlinking;
+          cup.blinkTimer = cup.isBlinking ? 0.14 : 2.2 + Math.random() * 2;
+        }
+        if (cup.happyTimer > 0) cup.happyTimer -= dt;
+      });
+
+      // Gentle cup-to-cup elastic collisions
+      for (let i = 0; i < cups.length; i++) {
+        for (let j = i + 1; j < cups.length; j++) {
+          const a = cups[i];
+          const b = cups[j];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const dist = Math.hypot(dx, dy);
+          const minDist = a.radius + b.radius + 6;
+
+          if (dist > 0 && dist < minDist) {
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const overlap = (minDist - dist) * 0.5;
+            a.x -= nx * overlap;
+            a.y -= ny * overlap;
+            b.x += nx * overlap;
+            b.y += ny * overlap;
+
+            const dvx = b.vx - a.vx;
+            const dvy = b.vy - a.vy;
+            const dot = dvx * nx + dvy * ny;
+            if (dot < 0) {
+              a.vx += dot * nx;
+              a.vy += dot * ny;
+              b.vx -= dot * nx;
+              b.vy -= dot * ny;
+            }
+          }
+        }
+      }
+
+      // Update steam particles
+      for (let i = steams.length - 1; i >= 0; i--) {
+        const s = steams[i];
+        s.y += s.vy * dt;
+        s.x += Math.sin(s.phase + s.y * 0.08) * 14 * dt;
+        s.alpha -= dt * 0.65;
+        if (s.alpha <= 0) steams.splice(i, 1);
+      }
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, width, height);
+
+      // Subtle decorative floor line
+      ctx.strokeStyle = "rgba(80, 38, 54, 0.18)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(24, height - 42);
+      ctx.lineTo(width - 24, height - 42);
+      ctx.stroke();
+
+      // Steam wisps
+      steams.forEach((s) => {
+        ctx.fillStyle = `rgba(80, 38, 54, ${Math.max(0, s.alpha * 0.35)})`;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      cups.forEach(drawCup);
+    }
+
+    function loop(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+      lastTime = timestamp;
+
+      update(dt);
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    function handleInteract(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const px = clientX - rect.left;
+      const py = clientY - rect.top;
+
+      let hitCup = null;
+      cups.forEach((cup) => {
+        if (Math.hypot(px - cup.x, py - cup.y) <= cup.radius + 18) {
+          hitCup = cup;
+        }
+      });
+
+      if (hitCup) {
+        hitCup.vy = -340;
+        hitCup.vx = (Math.random() - 0.5) * 240;
+        hitCup.squashX = 0.78;
+        hitCup.squashY = 1.25;
+        hitCup.happyTimer = 0.9;
+        for (let i = 0; i < 4; i++) spawnSteam(hitCup.x, hitCup.y - hitCup.radius);
+        if (badge) badge.textContent = `${hitCup.label} says cheers! ☕`;
+      } else {
+        // Boost all cups if user taps anywhere in the showcase
+        cups.forEach((cup) => {
+          cup.vy = -260 - Math.random() * 90;
+          cup.happyTimer = 0.6;
+          spawnSteam(cup.x, cup.y - cup.radius);
+        });
+      }
+    }
+
+    canvas.addEventListener("pointerdown", (e) => {
+      handleInteract(e.clientX, e.clientY);
+    });
+
+    window.addEventListener("resize", resize);
+    initCups();
+    resize();
+    requestAnimationFrame(loop);
+  })();
+</script></div>
 
 <!-- Footer: fill in your name -->
 <footer>Built by Maya Centeio &middot; BMIS 235</footer>
